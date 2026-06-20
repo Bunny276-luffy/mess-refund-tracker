@@ -1118,7 +1118,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Escape') hideModal();
   });
 
-  // 5. Initial render
+  // 5. Initialize Pendo with anonymous visitor
+  pendo.initialize({
+    visitor: {
+      id: ''
+    }
+  });
+
+  // 6. Initial render
   _prevTotal = null;
   render();
 });
