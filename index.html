@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mess Refund Tracker</title>
+  <meta name="description" content="Track hostel mess meal skips and calculate your refund. Works fully offline." />
+  <link rel="manifest" href="manifest.json" />
+
+  <!-- Inline SVG favicon -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0a14'/%3E%3Crect x='6' y='10' width='20' height='16' rx='3' fill='%2306b6d4' opacity='.25'/%3E%3Crect x='6' y='8' width='20' height='6' rx='2' fill='%2306b6d4' opacity='.6'/%3E%3Ccircle cx='11' cy='7' r='2' fill='%23a78bfa'/%3E%3Ccircle cx='21' cy='7' r='2' fill='%23a78bfa'/%3E%3Cpath d='M10 19l3 3 6-6' stroke='%2306b6d4' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E" />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700;800&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    /* ── Base typography ── */
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: 'Space Grotesk', system-ui, sans-serif; }
+    .font-mono, .mono, [data-mono] { font-family: 'JetBrains Mono', 'Courier New', monospace; }
+
+    /* ── Animated gradient mesh background ── */
+    body {
+      background-color: #07070f;
+      min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
+    }
+    body::before, body::after,
+    #blob3, #blob4 {
+      content: '';
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.18;
+      pointer-events: none;
+      z-index: 0;
+    }
+    body::before {
+      width: 520px; height: 520px;
+      background: radial-gradient(circle, #06b6d4 0%, transparent 70%);
+      top: -120px; left: -160px;
+      animation: blob-drift-1 18s ease-in-out infinite alternate;
+    }
+    body::after {
+      width: 480px; height: 480px;
+      background: radial-gradient(circle, #a78bfa 0%, transparent 70%);
+      bottom: -100px; right: -120px;
+      animation: blob-drift-2 22s ease-in-out infinite alternate;
+    }
+    #blob3 {
+      width: 360px; height: 360px;
+      background: radial-gradient(circle, #818cf8 0%, transparent 70%);
+      top: 40%; left: 60%;
+      animation: blob-drift-3 28s ease-in-out infinite alternate;
+    }
+    #blob4 {
+      width: 280px; height: 280px;
+      background: radial-gradient(circle, #06b6d4 0%, transparent 70%);
+      top: 60%; left: 10%;
+      animation: blob-drift-4 20s ease-in-out infinite alternate;
+    }
+    @keyframes blob-drift-1 {
+      0%   { transform: translate(0,   0)   scale(1);    }
+      50%  { transform: translate(60px, 80px) scale(1.1); }
+      100% { transform: translate(30px, 40px) scale(0.95); }
+    }
+    @keyframes blob-drift-2 {
+      0%   { transform: translate(0,   0)    scale(1);    }
+      50%  { transform: translate(-50px,-60px) scale(1.15);}
+      100% { transform: translate(-20px,-30px) scale(0.9); }
+    }
+    @keyframes blob-drift-3 {
+      0%   { transform: translate(0, 0)   scale(1);    opacity: 0.12; }
+      100% { transform: translate(-80px, 50px) scale(1.2); opacity: 0.2; }
+    }
+    @keyframes blob-drift-4 {
+      0%   { transform: translate(0, 0)   scale(1); opacity: 0.12; }
+      100% { transform: translate(60px, -40px) scale(0.8); opacity: 0.18; }
+    }
+
+    /* ── Glass card ── */
+    .glass {
+      background: rgba(255,255,255,0.04);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 20px;
+      box-shadow: 0 4px 32px rgba(0,0,0,0.4), 0 0 0 0.5px rgba(6,182,212,0.08);
+    }
+    .glass-sm {
+      background: rgba(255,255,255,0.04);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 14px;
+    }
+    .glass-inset {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 12px;
+    }
+
+    /* ── Neon counter text ── */
+    .neon-text {
+      background: linear-gradient(135deg, #06f0e0 0%, #06b6d4 40%, #a78bfa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      filter: drop-shadow(0 0 24px rgba(6,240,224,0.35));
+    }
+    @keyframes counter-pop {
+      0%   { transform: scale(1); }
+      35%  { transform: scale(1.12); filter: drop-shadow(0 0 36px rgba(6,240,224,0.6)); }
+      65%  { transform: scale(1.06); }
+      100% { transform: scale(1); }
+    }
+    .counter-pulse { animation: counter-pop 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+
+    /* ── Neon glow on interactive elements ── */
+    .neon-btn {
+      background: linear-gradient(135deg, rgba(6,182,212,0.2) 0%, rgba(167,139,250,0.15) 100%);
+      border: 1px solid rgba(6,182,212,0.35);
+      color: #67e8f9;
+      transition: all 0.2s ease;
+    }
+    .neon-btn:hover {
+      background: linear-gradient(135deg, rgba(6,182,212,0.32) 0%, rgba(167,139,250,0.25) 100%);
+      border-color: rgba(6,182,212,0.6);
+      box-shadow: 0 0 18px rgba(6,182,212,0.25);
+      color: #cffafe;
+    }
+    .neon-btn:active { transform: scale(0.97); }
+
+    .neon-btn-solid {
+      background: linear-gradient(135deg, #0891b2 0%, #7c3aed 100%);
+      border: 1px solid rgba(6,182,212,0.4);
+      color: white;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 16px rgba(8,145,178,0.3);
+    }
+    .neon-btn-solid:hover {
+      background: linear-gradient(135deg, #0e7490 0%, #6d28d9 100%);
+      box-shadow: 0 4px 24px rgba(8,145,178,0.45);
+    }
+    .neon-btn-solid:active { transform: scale(0.97); }
+
+    .danger-btn {
+      background: rgba(239,68,68,0.12);
+      border: 1px solid rgba(239,68,68,0.3);
+      color: #fca5a5;
+      transition: all 0.2s ease;
+    }
+    .danger-btn:hover {
+      background: rgba(239,68,68,0.22);
+      border-color: rgba(239,68,68,0.5);
+      box-shadow: 0 0 14px rgba(239,68,68,0.2);
+    }
+
+    /* ── Settings panel slide ── */
+    #settings-panel { transition: max-height 0.32s ease, opacity 0.22s ease; overflow: hidden; }
+    #settings-panel.collapsed { max-height: 0; opacity: 0; pointer-events: none; }
+    #settings-panel.expanded  { max-height: 1200px; opacity: 1; }
+
+    /* ── History month sections ── */
+    .month-body { transition: max-height 0.28s ease, opacity 0.2s ease; overflow: hidden; }
+    .month-body.collapsed { max-height: 0; opacity: 0; }
+    .month-body.expanded  { max-height: 9999px; opacity: 1; }
+
+    /* ── Day detail ── */
+    #day-detail { transition: opacity 0.18s ease; }
+    #day-detail.hidden { opacity: 0; pointer-events: none; }
+    #day-detail:not(.hidden) { opacity: 1; }
+
+    /* ── Modal ── */
+    #confirm-modal { transition: opacity 0.18s ease; }
+    #confirm-modal.hidden { opacity: 0; pointer-events: none; }
+    #confirm-modal:not(.hidden) { opacity: 1; }
+
+    /* ── Onboarding ── */
+    #onboarding-banner { transition: max-height 0.3s ease, opacity 0.25s ease, padding 0.3s ease; overflow: hidden; }
+    #onboarding-banner.dismissed { max-height: 0; opacity: 0; padding: 0; }
+
+    /* ── Preset card active ── */
+    .preset-card.active {
+      border-color: rgba(6,182,212,0.6) !important;
+      background: rgba(6,182,212,0.08) !important;
+      color: #67e8f9 !important;
+      box-shadow: 0 0 12px rgba(6,182,212,0.18);
+    }
+
+    /* ── Meal toggle buttons ── */
+    .meal-btn { transition: transform 0.1s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease; }
+    .meal-btn:active { transform: scale(0.92); }
+    .meal-btn.active {
+      box-shadow: 0 0 18px rgba(6,182,212,0.4);
+    }
+
+    /* ── Calendar day glow ── */
+    .day-skip-glow {
+      box-shadow: 0 0 10px rgba(6,182,212,0.25), inset 0 0 8px rgba(6,182,212,0.05);
+    }
+    .day-today-glow {
+      box-shadow: 0 0 10px rgba(167,139,250,0.3), inset 0 0 8px rgba(167,139,250,0.05);
+    }
+
+    /* ── Forecast progress bar ── */
+    .forecast-bar-track {
+      height: 6px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 9999px;
+      overflow: hidden;
+    }
+    .forecast-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #06b6d4, #a78bfa);
+      border-radius: 9999px;
+      transition: width 0.6s ease;
+      box-shadow: 0 0 8px rgba(6,182,212,0.5);
+    }
+
+    /* ── Scrollbar ── */
+    #history-list::-webkit-scrollbar { width: 3px; }
+    #history-list::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); border-radius: 9999px; }
+    #history-list::-webkit-scrollbar-thumb { background: rgba(6,182,212,0.3); border-radius: 9999px; }
+
+    /* ── Inputs ── */
+    input[type="number"],
+    input[type="text"],
+    input[type="file"] {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: #e2e8f0;
+      border-radius: 12px;
+      font-family: 'Space Grotesk', sans-serif;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    input:focus {
+      outline: none;
+      border-color: rgba(6,182,212,0.5);
+      box-shadow: 0 0 0 3px rgba(6,182,212,0.1);
+    }
+    input::placeholder { color: rgba(148,163,184,0.5); }
+
+    /* ── Filter toggle pill ── */
+    .filter-pill-active {
+      background: rgba(6,182,212,0.15);
+      color: #67e8f9;
+      font-weight: 700;
+      border: 1px solid rgba(6,182,212,0.3);
+      box-shadow: 0 0 10px rgba(6,182,212,0.15);
+    }
+    .filter-pill-inactive {
+      color: rgba(148,163,184,0.7);
+      font-weight: 600;
+      border: 1px solid transparent;
+    }
+
+    /* ── Divider line ── */
+    .neon-divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(6,182,212,0.25), transparent);
+    }
+
+    /* ── All content above z-0 blobs ── */
+    #onboarding-banner, #app, #confirm-modal { position: relative; z-index: 1; }
+  </style>
+</head>
+
+<!-- Animated blob placeholders (pure CSS, no JS) -->
+<body class="text-slate-200 min-h-screen pb-16">
+  <div id="blob3"></div>
+  <div id="blob4"></div>
+
+  <!-- ── ONBOARDING BANNER ── -->
+  <div id="onboarding-banner" class="px-4 py-3" style="background:linear-gradient(90deg,rgba(6,182,212,0.25),rgba(167,139,250,0.2));border-bottom:1px solid rgba(6,182,212,0.2);">
+    <div class="max-w-lg mx-auto flex items-center justify-between gap-3">
+      <p class="text-sm font-medium text-cyan-100 leading-snug">
+        Track skipped meals. Get the refund you're owed. Works fully offline, no login.
+      </p>
+      <button id="onboarding-dismiss"
+        class="shrink-0 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors neon-btn">
+        Got it
+      </button>
+    </div>
+  </div>
+
+  <!-- ── MAIN APP ── -->
+  <div id="app" class="max-w-lg mx-auto px-4 pt-5 space-y-4">
+
+    <!-- ── HEADER CARD ── -->
+    <div class="glass p-6 text-center">
+      <div class="flex items-center justify-center gap-2 mb-1">
+        <svg class="w-5 h-5" style="color:#06b6d4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+        <h1 class="text-lg font-extrabold tracking-tight text-white" style="letter-spacing:-0.02em">Mess Refund Tracker</h1>
+      </div>
+      <p class="text-xs mb-5" style="color:rgba(148,163,184,0.7)">Mark skipped meals · Get the rebate you're owed</p>
+
+      <!-- Big neon counter -->
+      <div style="background:rgba(6,182,212,0.05);border:1px solid rgba(6,182,212,0.15);border-radius:18px;padding:28px 16px">
+        <p class="text-[10px] font-bold uppercase tracking-[0.14em] mb-2" style="color:rgba(6,182,212,0.7)" id="counter-label">This Month's Refund</p>
+        <div id="total-counter"
+          class="neon-text font-mono text-7xl font-black leading-none tabular-nums"
+          aria-live="polite" aria-label="Total refund amount">₹0</div>
+        <p id="counter-sub" class="text-xs font-medium mt-2" style="color:rgba(148,163,184,0.55)"></p>
+      </div>
+    </div>
+
+    <!-- ── FORECAST CARD ── -->
+    <div id="forecast-card" class="glass p-4" style="display:none">
+      <div class="flex items-center gap-2 mb-2">
+        <svg class="w-3.5 h-3.5" style="color:#06b6d4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+        </svg>
+        <p class="text-[10px] font-bold uppercase tracking-[0.12em]" style="color:rgba(6,182,212,0.7)">Forecast</p>
+      </div>
+      <p id="forecast-text" class="text-sm font-semibold text-slate-200 mb-3"></p>
+      <div class="forecast-bar-track">
+        <div id="forecast-bar" class="forecast-bar-fill" style="width:0%"></div>
+      </div>
+      <div class="flex justify-between mt-1.5">
+        <span id="forecast-days-label" class="text-[10px]" style="color:rgba(148,163,184,0.5)"></span>
+        <span id="forecast-pct-label" class="text-[10px]" style="color:rgba(148,163,184,0.5)"></span>
+      </div>
+    </div>
+
+    <!-- ── STATS CHIPS ── -->
+    <div id="stats-row" class="grid grid-cols-3 gap-2"></div>
+
+    <!-- ── SETTINGS SECTION ── -->
+    <div class="glass overflow-hidden">
+      <button id="settings-toggle-btn"
+        class="w-full flex items-center justify-between px-5 py-4 text-left transition-colors hover:bg-white/[0.03]"
+        aria-expanded="false" aria-controls="settings-panel">
+        <div class="flex items-center gap-2">
+          <svg class="w-4 h-4" style="color:rgba(6,182,212,0.7)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+          <span class="font-semibold text-slate-200 text-sm">Settings</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <span id="settings-summary" class="text-xs font-medium" style="color:rgba(148,163,184,0.55)">B: ₹15 · L: ₹25 · D: ₹20</span>
+          <span id="settings-arrow" class="text-xs transition-transform duration-300 inline-block" style="color:rgba(148,163,184,0.5)">▼</span>
+        </div>
+      </button>
+
+      <div id="settings-panel" class="collapsed">
+        <div class="neon-divider mx-5"></div>
+        <div class="px-5 pb-5 pt-4 space-y-5">
+
+          <!-- Preset cards -->
+          <div>
+            <p class="text-[10px] font-bold uppercase tracking-wider mb-2" style="color:rgba(148,163,184,0.5)">Quick Presets</p>
+            <div id="preset-cards" class="grid grid-cols-2 gap-2"></div>
+          </div>
+
+          <!-- Divider -->
+          <div class="flex items-center gap-3">
+            <div class="flex-1 neon-divider"></div>
+            <span class="text-[11px] font-medium" style="color:rgba(148,163,184,0.45)">or set manually</span>
+            <div class="flex-1 neon-divider"></div>
+          </div>
+
+          <!-- Currency -->
+          <div>
+            <label class="block text-[10px] font-bold uppercase tracking-wider mb-1.5" style="color:rgba(148,163,184,0.55)" for="input-currency">Currency Symbol</label>
+            <input id="input-currency" type="text" maxlength="3" value="₹"
+              class="w-20 px-3 py-2 text-sm font-bold text-center" />
+          </div>
+
+          <!-- Meal rates -->
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-wider mb-1.5" style="color:#67e8f9" for="input-breakfast">Breakfast</label>
+              <div class="relative">
+                <span id="currency-hint-b" class="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium" style="color:rgba(148,163,184,0.5)">₹</span>
+                <input id="input-breakfast" type="number" min="0" step="0.5" value="15"
+                  class="w-full pl-7 pr-2 py-2 text-sm font-semibold" oninput="onManualRateChange()" />
+              </div>
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-wider mb-1.5" style="color:#67e8f9" for="input-lunch">Lunch</label>
+              <div class="relative">
+                <span id="currency-hint-l" class="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium" style="color:rgba(148,163,184,0.5)">₹</span>
+                <input id="input-lunch" type="number" min="0" step="0.5" value="25"
+                  class="w-full pl-7 pr-2 py-2 text-sm font-semibold" oninput="onManualRateChange()" />
+              </div>
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-wider mb-1.5" style="color:#67e8f9" for="input-dinner">Dinner</label>
+              <div class="relative">
+                <span id="currency-hint-d" class="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium" style="color:rgba(148,163,184,0.5)">₹</span>
+                <input id="input-dinner" type="number" min="0" step="0.5" value="20"
+                  class="w-full pl-7 pr-2 py-2 text-sm font-semibold" oninput="onManualRateChange()" />
+              </div>
+            </div>
+          </div>
+
+          <button id="save-settings-btn" class="w-full neon-btn-solid font-bold text-sm py-3 rounded-xl">
+            Save Settings
+          </button>
+
+          <!-- Divider -->
+          <div class="neon-divider"></div>
+
+          <!-- Backup & Restore -->
+          <div>
+            <p class="text-[10px] font-bold uppercase tracking-wider mb-2" style="color:rgba(148,163,184,0.5)">Backup & Restore</p>
+            <div class="grid grid-cols-2 gap-2">
+              <button id="backup-export-btn" class="neon-btn text-xs font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5">
+                <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                Export Backup
+              </button>
+              <button id="backup-import-btn" class="neon-btn text-xs font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5">
+                <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12"/>
+                </svg>
+                Import Backup
+              </button>
+            </div>
+            <!-- Hidden file input for import -->
+            <input id="backup-file-input" type="file" accept=".json" class="hidden" />
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ── CALENDAR SECTION ── -->
+    <div class="glass p-4">
+      <div class="flex items-center justify-between mb-4">
+        <h2 id="calendar-month-heading" class="font-bold text-white text-base" style="letter-spacing:-0.01em"></h2>
+        <span class="text-xs font-medium" style="color:rgba(148,163,184,0.5)">Tap date → log meal</span>
+      </div>
+      <div id="calendar-grid"></div>
+      <div id="calendar-empty" class="hidden mt-3 py-6 text-center">
+        <div class="text-2xl mb-2">📅</div>
+        <p class="text-sm font-semibold" style="color:rgba(148,163,184,0.7)">No meals logged yet</p>
+        <p class="text-xs mt-0.5" style="color:rgba(148,163,184,0.4)">Tap any date above to start tracking.</p>
+      </div>
+      <div id="day-detail" class="hidden mt-3"></div>
+    </div>
+
+    <!-- ── HISTORY SECTION ── -->
+    <div class="glass p-4">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-bold text-white text-sm flex items-center gap-1.5">
+          <svg class="w-4 h-4" style="color:rgba(6,182,212,0.7)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+          </svg>
+          Skip History
+        </h2>
+        <button id="clear-data-btn" class="danger-btn text-xs font-semibold px-2.5 py-1.5 rounded-lg">
+          Clear All
+        </button>
+      </div>
+
+      <!-- Filter toggle -->
+      <div class="flex items-center gap-1 mb-3 p-1 rounded-xl" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.05)">
+        <button id="filter-month-btn" class="flex-1 text-xs py-1.5 rounded-lg transition-all duration-200"
+          onclick="setHistoryFilter('month')">This Month</button>
+        <button id="filter-all-btn" class="flex-1 text-xs py-1.5 rounded-lg transition-all duration-200"
+          onclick="setHistoryFilter('all')">All Time</button>
+      </div>
+
+      <div id="history-list" class="space-y-3 max-h-80 overflow-y-auto pr-0.5"></div>
+    </div>
+
+    <!-- ── EXPORT BUTTONS ROW ── -->
+    <div class="grid grid-cols-2 gap-3">
+      <button id="export-btn"
+        class="neon-btn font-bold text-sm py-4 rounded-2xl flex items-center justify-center gap-2">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        Warden Report
+      </button>
+      <button id="save-image-btn"
+        class="neon-btn-solid font-bold text-sm py-4 rounded-2xl flex items-center justify-center gap-2">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+        Save as Image
+      </button>
+    </div>
+
+  </div><!-- /app -->
+
+  <!-- ── CUSTOM CONFIRM MODAL ── -->
+  <div id="confirm-modal"
+    class="hidden fixed inset-0 z-50 flex items-center justify-center px-6"
+    role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <!-- Backdrop -->
+    <div class="absolute inset-0 backdrop-blur-sm" id="modal-backdrop"
+      style="background:rgba(7,7,15,0.75)"></div>
+    <!-- Card -->
+    <div class="relative glass max-w-sm w-full p-6 z-10" style="border-color:rgba(6,182,212,0.2)">
+      <div class="text-center mb-5">
+        <div class="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"
+          style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.25)">
+          <svg class="w-6 h-6" style="color:#fca5a5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+        </div>
+        <h3 id="modal-title" class="text-base font-bold text-white mb-1">Delete all data?</h3>
+        <p id="modal-body" class="text-sm" style="color:rgba(148,163,184,0.7)">Are you sure? This deletes all logged data permanently.</p>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <button id="modal-cancel"
+          class="py-3 rounded-xl text-sm font-semibold transition-colors"
+          style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8">
+          Cancel
+        </button>
+        <button id="modal-confirm"
+          class="danger-btn py-3 rounded-xl font-bold text-sm">
+          Delete Everything
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
