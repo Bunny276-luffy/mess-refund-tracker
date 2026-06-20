@@ -190,8 +190,27 @@ function persistFilter()   { localStorage.setItem(HIST_FILTER_KEY, histFilter); 
 // ── Actions ───────────────────────────────────────────────────
 function toggleMeal(dateStr, meal) {
   const idx = logs.findIndex(e => e.date === dateStr && e.meal === meal);
+  const action = idx !== -1 ? 'unlogged' : 'logged';
   idx !== -1 ? logs.splice(idx, 1) : logs.push({ date: dateStr, meal });
   persistLogs();
+
+  if (typeof pendo !== 'undefined') {
+    const dateSkips = logs.filter(e => e.date === dateStr);
+    const monthPrefix = dateStr.slice(0, 7);
+    const monthLogs = logs.filter(e => e.date.startsWith(monthPrefix));
+    pendo.track('meal_skip_toggled', {
+      date: dateStr,
+      meal: meal,
+      action: action,
+      meal_rate: getAmount(meal),
+      currency: settings.currency,
+      day_total_after: calcTotalFor(dateSkips),
+      total_skips_for_date: dateSkips.length,
+      month_total_after: calcTotalFor(monthLogs),
+      is_today: dateStr === TODAY_STR
+    });
+  }
+
   render();
 }
 
@@ -375,6 +394,7 @@ function applyPreset(id) {
   const p = PRESETS.find(x => x.id === id);
   if (!p) return;
 
+  const previousPreset = settings.preset;
   settings.preset = id;
 
   if (id !== 'custom') {
@@ -384,6 +404,17 @@ function applyPreset(id) {
     document.getElementById('input-breakfast').value = p.breakfast;
     document.getElementById('input-lunch').value     = p.lunch;
     document.getElementById('input-dinner').value    = p.dinner;
+  }
+
+  if (typeof pendo !== 'undefined') {
+    pendo.track('preset_applied', {
+      preset_id: id,
+      preset_label: p.label,
+      breakfast_rate: settings.breakfast,
+      lunch_rate: settings.lunch,
+      dinner_rate: settings.dinner,
+      previous_preset: previousPreset
+    });
   }
 
   renderPresetCards();
@@ -718,6 +749,20 @@ function handleExport() {
   }
   win.document.write(reportHTML);
   win.document.close();
+
+  if (typeof pendo !== 'undefined') {
+    const uniqueDates = new Set(logs.map(e => e.date));
+    pendo.track('warden_report_generated', {
+      total_entries: logs.length,
+      total_refund_amount: total,
+      currency: settings.currency,
+      preset_name: presetName,
+      breakfast_rate: settings.breakfast,
+      lunch_rate: settings.lunch,
+      dinner_rate: settings.dinner,
+      unique_dates_count: uniqueDates.size
+    });
+  }
 }
 
 // ── Settings: save ────────────────────────────────────────────
@@ -733,6 +778,19 @@ function handleSaveSettings() {
   settings.currency  = c || DEFAULT_SETTINGS.currency;
 
   persistSettings();
+
+  if (typeof pendo !== 'undefined') {
+    const presetObj = PRESETS.find(p => p.id === settings.preset) || PRESETS[0];
+    pendo.track('settings_saved', {
+      breakfast_rate: settings.breakfast,
+      lunch_rate: settings.lunch,
+      dinner_rate: settings.dinner,
+      currency: settings.currency,
+      preset: presetObj.label,
+      total_per_day_rate: settings.breakfast + settings.lunch + settings.dinner
+    });
+  }
+
   render();
 
   const btn = document.getElementById('save-settings-btn');
@@ -776,10 +834,25 @@ function handleClearData() {
   document.getElementById('modal-cancel').textContent  = 'Cancel';
 
   showModal(() => {
+    const entriesDeleted = logs.length;
+    const totalRefundLost = calcTotalFor(logs);
+    const uniqueDates = new Set(logs.map(e => e.date));
+    const months = new Set(logs.map(e => e.date.slice(0, 7)));
+
     logs = [];
     selectedDay = null;
     persistLogs();
     render();
+
+    if (typeof pendo !== 'undefined') {
+      pendo.track('all_data_cleared', {
+        entries_deleted: entriesDeleted,
+        total_refund_lost: totalRefundLost,
+        currency: settings.currency,
+        months_of_data_cleared: months.size,
+        unique_dates_cleared: uniqueDates.size
+      });
+    }
   });
 }
 
@@ -804,6 +877,17 @@ function handleBackupExport() {
   a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 2000);
+
+  if (typeof pendo !== 'undefined') {
+    const presetObj = PRESETS.find(p => p.id === settings.preset) || PRESETS[0];
+    pendo.track('backup_exported', {
+      total_log_entries: backup.logs.length,
+      settings_preset: presetObj.label,
+      currency: settings.currency,
+      backup_version: backup.version,
+      backup_filename: a.download
+    });
+  }
 }
 
 // ── NEW: Backup — Import ──────────────────────────────────────
@@ -826,6 +910,7 @@ function processBackupFile(file) {
 
   const reader = new FileReader();
   reader.onload = (ev) => {
+    const previousLogCount = logs.length;
     try {
       const data = JSON.parse(ev.target.result);
 
@@ -859,8 +944,28 @@ function processBackupFile(file) {
 
       render();
       showInfoModal('Backup restored ✓', `${data.logs.length} entries imported successfully.`);
+
+      if (typeof pendo !== 'undefined') {
+        pendo.track('backup_imported', {
+          outcome: 'success',
+          entries_imported: data.logs.length,
+          backup_version: data.version || 0,
+          file_size: file.size,
+          previous_log_count: previousLogCount
+        });
+      }
     } catch (err) {
       showInfoModal('Invalid backup file', `Could not import: ${err.message}. Please use a file exported by this app.`);
+
+      if (typeof pendo !== 'undefined') {
+        pendo.track('backup_imported', {
+          outcome: 'failure',
+          entries_imported: 0,
+          error_message: err.message.substring(0, 100),
+          file_size: file.size,
+          previous_log_count: previousLogCount
+        });
+      }
     }
   };
   reader.readAsText(file);
@@ -1056,6 +1161,19 @@ function handleSaveAsImage() {
     a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 2000);
+
+    if (typeof pendo !== 'undefined') {
+      pendo.track('receipt_image_saved', {
+        total_entries: filtered.length,
+        total_refund_amount: total,
+        currency: settings.currency,
+        preset_name: presetName,
+        filter_view: filterLabel,
+        entries_in_view: entries.length,
+        entries_capped: filtered.length > maxEntries,
+        image_filename: a.download
+      });
+    }
   }, 'image/png');
 }
 
@@ -1084,6 +1202,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('onboarding-dismiss').addEventListener('click', () => {
     localStorage.setItem(ONBOARDED_KEY, '1');
     document.getElementById('onboarding-banner').classList.add('dismissed');
+
+    if (typeof pendo !== 'undefined') {
+      pendo.track('onboarding_dismissed', {
+        time_on_page_before_dismiss: Math.round(performance.now() / 1000)
+      });
+    }
   });
 
   // 3. Populate inputs
